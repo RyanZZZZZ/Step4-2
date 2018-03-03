@@ -1,0 +1,424 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<ctype.h>
+#include<string.h>
+#include<time.h>
+int charClass;
+#define MAX_LEN 1000
+char lexeme[MAX_LEN];//保存当前构建的词素
+char nextChar;
+char next2Char;
+int lexLen;
+int token;
+int nextToken;
+FILE * fp;
+char str[] = "include", str1[] = "char", str2[] = "int", str3[] = "float";
+
+#define LETTER 0        //字符
+#define DIGIT 1      //数字
+#define UNKNOWN 999
+
+enum { WHILE = 258, IF, ELSE, FOR, RET, CONTINUE, BREAK, CASE, DEFAULT, DO, EXTERN, GOTO, AUTO, REGISTER, SHORT, SIGNED, SIZEOF, STATIC, STRUCT, SWITCH, TYPEDEF, UNION, UNSIGNED, VOID, VOLATILE, INT, FLOAT, P_INT, ARR_SIZE, P_FLOAT, P_DOUBLE, P_CHAR, P_FILE, STRCONST, CHARCONST, HEADER_NAME, INCLUDE, SYM_GETAD, ID, EQU, NON_EQU, PLUS2, MINUS2, PLUS_EQU, MINUS_EQU, MULTI_EQU, BY_EQU, OR_EQU, WITH_EQU, WITH2, OR2, ERROR };
+const char * keywords[] = { "while","if","else","for","return", "continue", "break", "case", "default", "do", "extern", "goto", "auto", "register", "short", "signed", "sizeof","static", "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", 0 };
+//指针数组，数组内每一个元素指向一个字符串
+void addChar()
+{   /*将nextChar中的字符放到字符串数组lexeme中*/
+	if (lexLen <= MAX_LEN - 2) {
+		lexeme[lexLen++] = nextChar;
+		lexeme[lexLen] = 0;
+	}
+	else {
+		printf("ERROR:lexeme is too long. \n");
+	}
+}
+
+void getChar()
+{   /*getChar从输入程序中获取下一个输入字符，将它放在全局变量nextChar中。
+	getChar还必须确定输入字符所属的字符类，将它放到全局变量charClass中。*/
+	static int firstRun = 1;
+	firstRun ? (nextChar = getc(fp), next2Char = getc(fp), firstRun = 0) : (nextChar = next2Char, next2Char = getc(fp));
+	if (nextChar == EOF)
+		charClass = EOF;
+	else
+	{
+		if (isalpha(nextChar))//判断是否为英文字符
+			charClass = LETTER;
+		else if (isdigit(nextChar))//判断是否为数字
+			charClass = DIGIT;
+		else
+			charClass = UNKNOWN;
+	}
+}
+
+void getNonBlank()//跳过空格
+{
+	while (isspace(nextChar))//判断是否为空格，是则再读取下一个
+		getChar();
+}
+
+int checkSymbol(char ch, char nextCh)
+{
+	switch (ch) {
+	case '(':case ')':case ';': case '{':case '}': case '#': case '<': case '>': case ',':  case ':': case '?':
+		addChar();
+		nextToken = ch;
+		break;
+	case '=':
+		addChar();
+		nextToken = ch;
+		if ('=' == nextCh) {
+			getChar();
+			addChar();
+			nextToken = EQU;//为判等号
+		}
+		break;
+	case '*':
+		break;
+	case '-':
+		addChar();
+		nextToken = ch;
+		if ('=' == nextCh) {
+			getChar();
+			addChar();
+			nextToken = MINUS_EQU;//为判等号
+		}
+		break;
+	case '!':
+		addChar();
+		nextToken = ch;
+		if ('=' == nextCh) {
+			getChar();
+			addChar();
+			nextToken = NON_EQU;
+		}
+		break;
+	case '+':
+		break;
+	case '"':
+		break;
+	case ']':
+		break;
+	case ' ':
+		break;
+	case '\'':
+		break;
+	case '|':
+		break;
+	case '&':
+		break;
+	case '\n':
+		next2Char = getc(fp);
+		break;
+	case EOF:
+		addChar();
+		nextToken = EOF;
+		break;
+	default:
+		printf("ERROR:unknown character '%c'. \n", ch);
+		nextToken = ERROR;
+	}
+	return nextToken;
+}
+
+void checkKeywords(char * pword)
+{
+	int i = 0;
+	while (keywords[i] != 0) {
+		const char * pkeyword = keywords[i];
+		if (0 == strcmp(pword, pkeyword)) {
+			nextToken = 258 + i;
+			return;
+		}
+		i++;
+	}
+}
+
+int lexer()
+{
+	lexLen = 0;
+	getNonBlank();
+	switch (charClass) {
+	case LETTER:
+		addChar();
+		getChar();
+		while (charClass == LETTER || charClass == DIGIT || nextChar == '_')
+		{
+			addChar();
+			getChar();
+			if (strcmp("void", lexeme) == 0)
+			{
+				nextToken == VOID;
+			}
+		}
+		nextToken = ID;
+		if (nextChar == '<')
+		{
+			nextToken = INCLUDE;
+		}
+		if (nextChar == '.')
+		{
+			addChar();
+			getChar();
+			while (charClass == LETTER)
+			{
+				addChar();
+				getChar();
+			}
+			nextToken = HEADER_NAME;
+		}
+
+		getNonBlank();
+		if (nextChar == '*')
+		{
+			if (strcmp("char", lexeme) == 0)
+			{
+				addChar();
+				getChar();
+				nextToken = P_CHAR;
+			}
+			else if (strcmp("FILE", lexeme) == 0)
+			{
+				addChar();
+				getChar();
+				nextToken = P_FILE;
+			}
+			else if (strcmp("int", lexeme) == 0)
+			{
+				addChar();
+				getChar();
+				nextToken = P_INT;
+			}
+			else if (strcmp("float", lexeme) == 0)
+			{
+				addChar();
+				getChar();
+				nextToken = P_FLOAT;
+			}
+			else if (strcmp("double", lexeme) == 0)
+			{
+				addChar();
+				getChar();
+				nextToken = P_DOUBLE;
+			}
+		}
+		//检查当前标识符是否是关键字
+		checkKeywords(lexeme);
+		break;
+	case DIGIT:
+		addChar();
+		getChar();
+		while (charClass == DIGIT)
+		{
+			addChar();
+			getChar();
+		}
+		nextToken = INT;
+		if (nextChar == '.')
+		{
+			addChar();
+			while (next2Char >= '0' && next2Char <= '9')
+			{
+				getChar();
+				addChar();
+			}
+			nextToken = FLOAT;
+			getChar();
+		}
+		break;
+	case UNKNOWN:
+		if (nextChar == '+')
+		{
+			if (next2Char != '+' && next2Char != '=')
+			{
+				addChar();
+			}
+			else if(next2Char == '+')
+			{
+				addChar();
+				getChar();
+				addChar();
+				nextToken == PLUS2;
+			}
+			else if (next2Char == '=')
+			{
+				addChar();
+				getChar();
+				addChar();
+				nextToken == PLUS_EQU;
+			}
+		}
+		else if (nextChar == '*')
+		{
+			if (next2Char != '=')
+			{
+				addChar();
+			}
+			else if (next2Char == '=')
+			{
+				addChar();
+				getChar();
+				addChar();
+				nextToken == MULTI_EQU;
+			}
+		}
+		else if (nextChar == '|')
+		{
+			if (next2Char != '|' && next2Char != '=')
+			{
+				addChar();
+			}
+			else if(next2Char == '|')
+			{
+				addChar();
+				getChar();
+				addChar();
+				nextToken = OR2;
+			}
+			else if(next2Char == '=')
+			{
+				addChar();
+				getChar();
+				addChar();
+				nextToken = OR_EQU;
+			}
+		}
+		else if (nextChar == '[')
+		{
+			int i = 0;
+			do{	
+				addChar();
+				getChar();
+				i++;
+			} while (nextChar != ']');
+			if (i == 1)
+			{
+				addChar();
+			}
+			else
+			{
+				addChar();
+				nextToken = ARR_SIZE;
+			}
+		}
+		else if (nextChar == '"')
+		{
+			while (next2Char != '"')
+			{
+				addChar();
+				getChar();
+			}
+			addChar();
+			getChar();
+			addChar();
+			nextToken = STRCONST;
+		}
+		else if (nextChar == '\'')
+		{
+			do {
+				addChar();
+				getChar();
+			} while (nextChar != '\'');
+			addChar();
+			if (next2Char == '\'')
+			{
+				getChar();
+				addChar();
+			}
+			nextToken = CHARCONST;
+		}
+		else if (nextChar == '/')
+		{
+			if (next2Char == '/')
+			{
+				while (nextChar != '\n')
+					getChar();
+				return 0;
+			}
+			else if (next2Char == '*')
+			{
+				while (next2Char != '/')
+				{
+					getChar();
+				}
+				getChar();
+				getChar();
+				return 0;
+			}
+			else if (next2Char == '=')
+			{
+				addChar();
+				getChar();
+				addChar();
+				nextToken = BY_EQU;//为判等号
+				getChar();
+				return 0;
+			}
+		}
+		else if (nextChar == '&')
+		{
+			if (next2Char == ' ')
+			{
+				addChar();
+			}
+			else if(next2Char == '&')
+			{
+				addChar();
+				getChar();
+				addChar();
+				nextToken = WITH2;
+			}
+			else if (next2Char == '=')
+			{
+				addChar();
+				getChar();
+				addChar();
+				nextToken =WITH_EQU;
+			}
+			else 
+			{
+				while (next2Char != ',' && next2Char != ')')
+				{
+					addChar();
+					getChar();
+				}
+				addChar();
+				getChar();
+				nextToken = SYM_GETAD;
+				printf("%6d, %s \n", nextToken, lexeme);
+				return 0;
+			}
+		}
+		checkSymbol(nextChar, next2Char);
+		getChar();
+		break;
+	case EOF:
+		nextToken = EOF;
+		lexeme[0] = 'E';
+		lexeme[1] = 'O';
+		lexeme[2] = 'F';
+		lexeme[3] = 0;
+		break;
+	}
+
+	printf("%6d, %s \n", nextToken, lexeme);
+	return nextToken;
+}
+
+void main(int argc, char * argv[])
+{
+	if (argc<2) 
+	{
+		printf("ERROR:input file name is needed. \n");
+		exit(0);
+	}
+
+	fp = fopen(argv[1], "r");
+	if (fp == NULL) 
+	{
+		printf("ERROR:can not open file. \n");
+		exit(0);
+	}
+	getChar();
+	while (nextToken != EOF)
+		lexer();
+}
